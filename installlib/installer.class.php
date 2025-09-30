@@ -1,4 +1,5 @@
 ﻿<?php
+declare(strict_types=1);
 namespace FreePBX\Install;
 
 use Symfony\Component\Console\Input\InputInterface;
@@ -8,6 +9,8 @@ class Installer {
 	function __construct(InputInterface $input = NULL, OutputInterface $output = NULL) {
 		$this->input = $input;
 		$this->output = $output;
+		// Apply forward-compatibility fixes during install runtime
+		$this->applyCompatibilityFixes();
 	}
 
 	private function log($message) {
@@ -2243,7 +2246,47 @@ class Installer {
 	$um = new \FreePBX\Builtin\UpdateManager();
 	$um->updateCrontab();
 	}
+	/**
+	 * Apply minimal compatibility fixes for older vendor code used by
+	 * FreePBX 15 when running in newer environments.
+	 */
+	private function applyCompatibilityFixes(): void
+	{
+		// Relax deprecations only.
+		\ = error_reporting();
+		\ = \ & ~E_DEPRECATED & ~E_USER_DEPRECATED;
+		if (\ !== \) {
+			@error_reporting(\);
+		}
+		// Locate composer vendor from the repo layout
+		\ = dirname(__DIR__) . '/amp_conf/htdocs/admin/libraries/Composer/vendor';
+		\ = \ . '/patchwork/utf8';
+		if (!is_dir(\)) {
+			return; // nothing to do
+		}
+		\ = '/(\\$[A-Za-z_][A-Za-z0-9_]*)\\{([^}]+)\\}/m';
+		\ = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator(\, \FilesystemIterator::SKIP_DOTS)
+		);
+		foreach (\ as \) {
+			/** @var \SplFileInfo \ */
+			if (\->isFile() && substr(\->getFilename(), -4) === '.php') {
+				\installlib\installer.class.php = \->getPathname();
+				\ = @file_get_contents(\installlib\installer.class.php);
+				if (\ === false) { continue; }
+				\ = preg_replace(\, '[]', \);
+				if (\ !== null && \ !== \) {
+					@file_put_contents(\installlib\installer.class.php, \);
+				}
+			}
+		}
+	}
 }
 ?>
+
+
+
+
+
 
 
